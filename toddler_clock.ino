@@ -48,13 +48,13 @@ void setup(void) {
   if (! rtc.isrunning()) {
     Serial.println("RTC is NOT running!");
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  } else {
-    DateTime now = rtc.now();
-    setTime(now.hour(), now.minute(), now.second(), now.day(), now.month(), now.year());
-
-    Alarm.alarmRepeat(wakeUpHour, wakeUpMinute, 0, wakeUp);
-    Alarm.alarmRepeat(sleepHour, sleepMinute, 0, goToSleep);
   }
+
+  DateTime now = rtc.now();
+  setTime(now.hour(), now.minute(), now.second(), now.day(), now.month(), now.year());
+
+  Alarm.alarmRepeat(wakeUpHour, wakeUpMinute, 0, wakeUp);
+  Alarm.alarmRepeat(sleepHour, sleepMinute, 0, goToSleep);
 
   Serial.println(F("Hello, CC3000!\n"));
 
