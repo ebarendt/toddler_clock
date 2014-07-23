@@ -155,7 +155,7 @@ void displayCurrentTime() {
   lcd.setCursor(0, 1);
   DateTime now = rtc.now();
   int hour = now.hour();
-  if (hour > 13) {
+  if (hour > 12) {
     hour -= 12;
   }
   if (hour < 10) {
