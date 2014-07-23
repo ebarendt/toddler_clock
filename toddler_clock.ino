@@ -1,5 +1,7 @@
 #include <Wire.h>
-#include "RTClib.h"
+#include <RTClib.h>
+#include <Time.h>
+#include <TimeAlarms.h>
 
 #include <Adafruit_MCP23008.h>
 #include <LiquidCrystal.h>
@@ -26,19 +28,13 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
 
-#define redPin 9
-#define bluePin 8
-#define greenPin 7
-#define ON LOW
-#define OFF HIGH
+#define yellowPin 8
+#define greenPin 9
 
-const int ledPins[] = {redPin, greenPin, bluePin};
-const boolean YELLOW[] = {ON, ON, OFF};
-const boolean GREEN[] = {OFF, ON, OFF};
 uint8_t wakeUpHour = 6;
 uint8_t wakeUpMinute = 40;
 uint8_t sleepHour = 17;
-uint8_t sleepMinute = 00;
+uint8_t sleepMinute = 0;
 
 LiquidCrystal lcd(0);
 RTC_DS1307 rtc;
@@ -48,9 +44,16 @@ void setup(void) {
   lcd.begin(16, 2);
   Wire.begin();
   rtc.begin();
+
   if (! rtc.isrunning()) {
     Serial.println("RTC is NOT running!");
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  } else {
+    DateTime now = rtc.now();
+    setTime(now.hour(), now.minute(), now.second(), now.day(), now.month(), now.year());
+
+    Alarm.alarmRepeat(wakeUpHour, wakeUpMinute, 0, wakeUp);
+    Alarm.alarmRepeat(sleepHour, sleepMinute, 0, goToSleep);
   }
 
   Serial.println(F("Hello, CC3000!\n"));
@@ -65,55 +68,32 @@ void setup(void) {
     while(1);
   }
 
-  for (int i = 0; i < 3; i++) {
-    pinMode(ledPins[i], OUTPUT);
-  }
+  pinMode(yellowPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  setColor(yellowPin);
 }
 
 void loop(void) {
-  if (wakeUpTime()) {
-    setColor(GREEN);
-  } else {
-    setColor(YELLOW);
-  }
-
   displayCurrentTime();
 
-  connectToWifi();  
+  connectToWifi();
   checkDHCP();
 
-  delay(1000);
+  Alarm.delay(1000);
 }
 
-boolean wakeUpTime() {
-  DateTime now = rtc.now();
-  if (now.hour() == wakeUpHour && now.minute() == wakeUpMinute) {
-    return true;
-  }
-  return !sleepTime(now);
-}
- 
-boolean sleepTime(DateTime now) {
-  if (now.hour() < wakeUpHour || now.hour() > sleepHour) {
-    return true;
-  } else if (now.hour() == wakeUpHour && now.minute() < wakeUpMinute) {
-    return true;
-  } else if (now.hour() > wakeUpHour && now.hour() < sleepHour) {
-    return false;
-  } else if (now.hour() == sleepHour) {
-    if (now.minute() < sleepMinute) {
-      return false;
-    } else { // minute() >= sleepMinute
-      return true;
-    }
-  }
-  return true;
+void wakeUp() {
+  setColor(greenPin);
 }
 
-void setColor(const boolean* color) {
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(ledPins[i], color[i]);
-  }
+void goToSleep() {
+  setColor(yellowPin);
+}
+
+void setColor(const int onPin) {
+  digitalWrite(greenPin, LOW);
+  digitalWrite(yellowPin, LOW);
+  digitalWrite(onPin, HIGH);
 }
 
 void connectToWifi() {
@@ -144,7 +124,7 @@ void checkDHCP() {
     Serial.println(F("DHCP Request Failed"));
     status(F("DHCP Failed"));
     timeout += 500;
-    delay(500);
+    Alarm.delay(500);
   }
 
   if (timeout < maxWait) {
@@ -154,7 +134,7 @@ void checkDHCP() {
       Serial.println(F("No connection details"));
       status(F("No conn details"));
       timeout += 1000;
-      delay(1000);
+      Alarm.delay(1000);
     }
   }
 }
