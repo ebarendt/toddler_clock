@@ -146,9 +146,9 @@ void status(const char* msg) {
   }
 }
 
-void status(const __FlashStringHelper* message) {
+void status(const __FlashStringHelper* msg) {
   lcd.setCursor(0, 0);
-  lcd.print(message);
+  lcd.print(msg);
 }
 
 void displayCurrentTime() {
