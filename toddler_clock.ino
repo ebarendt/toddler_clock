@@ -26,6 +26,20 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
 
+#define redPin 9
+#define bluePin 8
+#define greenPin 7
+#define ON LOW
+#define OFF HIGH
+
+const int ledPins[] = {redPin, greenPin, bluePin};
+const boolean YELLOW[] = {ON, ON, OFF};
+const boolean GREEN[] = {OFF, ON, OFF};
+uint8_t wakeUpHour = 6;
+uint8_t wakeUpMinute = 40;
+uint8_t sleepHour = 17;
+uint8_t sleepMinute = 00;
+
 LiquidCrystal lcd(0);
 RTC_DS1307 rtc;
 
@@ -50,15 +64,56 @@ void setup(void) {
     status(F("WiFi Error"));
     while(1);
   }
+
+  for (int i = 0; i < 3; i++) {
+    pinMode(ledPins[i], OUTPUT);
+  }
 }
 
 void loop(void) {
-  connectToWifi();
-  checkDHCP();
+  if (wakeUpTime()) {
+    setColor(GREEN);
+  } else {
+    setColor(YELLOW);
+  }
 
   displayCurrentTime();
 
+  connectToWifi();  
+  checkDHCP();
+
   delay(1000);
+}
+
+boolean wakeUpTime() {
+  DateTime now = rtc.now();
+  if (now.hour() == wakeUpHour && now.minute() == wakeUpMinute) {
+    return true;
+  }
+  return !sleepTime(now);
+}
+ 
+boolean sleepTime(DateTime now) {
+  if (now.hour() < wakeUpHour || now.hour() > sleepHour) {
+    return true;
+  } else if (now.hour() == wakeUpHour && now.minute() < wakeUpMinute) {
+    return true;
+  } else if (now.hour() > wakeUpHour && now.hour() < sleepHour) {
+    return false;
+  } else if (now.hour() == sleepHour) {
+    if (now.minute() < sleepMinute) {
+      return false;
+    } else { // minute() >= sleepMinute
+      return true;
+    }
+  }
+  return true;
+}
+
+void setColor(const boolean* color) {
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(ledPins[i], color[i]);
+  }
 }
 
 void connectToWifi() {
