@@ -7,10 +7,9 @@
 #include <LiquidCrystal.h>
 
 #include <Adafruit_CC3000.h>
+#include <aREST.h>
 #include <ccspi.h>
 #include <SPI.h>
-#include <string.h>
-#include "utility/debug.h"
 
 // These are the interrupt and control pins
 #define ADAFRUIT_CC3000_IRQ   3  // MUST be an interrupt pin!
@@ -28,13 +27,19 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
 
+// Server instance
+Adafruit_CC3000_Server restServer(80);
+
+// Create aREST instance
+aREST rest = aREST();
+
 #define yellowPin 8
 #define greenPin 9
 
-uint8_t wakeUpHour = 6;
-uint8_t wakeUpMinute = 40;
-uint8_t sleepHour = 17;
-uint8_t sleepMinute = 0;
+#define wakeUpHour 6
+#define wakeUpMinute 40
+#define sleepHour 17
+#define sleepMinute 0
 
 LiquidCrystal lcd(0);
 RTC_DS1307 rtc;
@@ -45,23 +50,13 @@ void setup(void) {
   Wire.begin();
   rtc.begin();
 
-  if (! rtc.isrunning()) {
-    Serial.println("RTC is NOT running!");
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  }
-
   DateTime now = rtc.now();
   setTime(now.hour(), now.minute(), now.second(), now.day(), now.month(), now.year());
 
   Alarm.alarmRepeat(wakeUpHour, wakeUpMinute, 0, wakeUp);
   Alarm.alarmRepeat(sleepHour, sleepMinute, 0, goToSleep);
 
-  Serial.println(F("Hello, CC3000!\n"));
-
-  Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
-
   /* Initialise the module */
-  Serial.println(F("\nInitializing..."));
   if (!cc3000.begin()) {
     Serial.println(F("Couldn't begin()! Check your wiring?"));
     status(F("WiFi Error"));
@@ -72,7 +67,13 @@ void setup(void) {
   pinMode(greenPin, OUTPUT);
   setColor(yellowPin);
 
-  lcd.setBacklight(LOW);
+  lcd.setBacklight(HIGH);
+
+  // Give name and ID to device
+  rest.set_id("001");
+  rest.set_name("clock");
+  rest.function("color", colorFromAPI);
+  restServer.begin();
 }
 
 void loop(void) {
@@ -80,6 +81,9 @@ void loop(void) {
 
   connectToWifi();
   checkDHCP();
+
+  Adafruit_CC3000_ClientRef client = restServer.available();
+  rest.handle(client);
 
   Alarm.delay(1000);
 }
@@ -98,28 +102,29 @@ void setColor(const int onPin) {
   digitalWrite(onPin, HIGH);
 }
 
-void connectToWifi() {
-  if (!cc3000.checkConnected()) {
-    Serial.print(F("\nAttempting to connect to ")); Serial.println(WLAN_SSID);
-    if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
-      Serial.println(F("Failed!"));
-      status(F("WiFi conn failed"));
-    }
-
-    Serial.println(F("\nConnected!"));
+int colorFromAPI(String command) {
+  if (command == "green") {
+    wakeUp();
+  } else if (command == "yellow") {
+    goToSleep();
   }
+  return 1;
 }
 
-void disconnectWifi() {
-  /* You need to make sure to clean up after yourself or the CC3000 can freak out */
-  /* the next time your try to connect ... */
-  Serial.println(F("\n\nDisconnecting"));
-  cc3000.disconnect();
+void connectToWifi() {
+  if (!cc3000.checkConnected()) {
+    // Serial.print(F("\nAttempting to connect to ")); Serial.println(WLAN_SSID);
+    if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
+      Serial.println(F("Failed to connect to AP!"));
+      status(F("WiFi conn failed"));
+    }
+    // Serial.println(F("\nConnected!"));
+  }
 }
 
 void checkDHCP() {
   /* Wait for DHCP to complete */
-  Serial.println(F("Request DHCP"));
+  // Serial.println(F("Request DHCP"));
   int maxWait = 20000;
   int timeout = 0;
   while (!cc3000.checkDHCP() && timeout < maxWait) {
@@ -171,15 +176,6 @@ bool displayConnectionDetails(void)
     /* Serial.print(F("\nDNSserv: ")); cc3000.printIPdotsRev(dnsserv); */
     /* Serial.println(); */
     return true;
-  }
-}
-
-void status(const char* msg) {
-  lcd.setCursor(0, 0);
-  lcd.print(msg);
-  int printed = strlen(msg);
-  while (printed++ <= 16) {
-    lcd.print(F(" "));
   }
 }
 
