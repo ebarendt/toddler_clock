@@ -71,6 +71,8 @@ void setup(void) {
   pinMode(yellowPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   setColor(yellowPin);
+
+  lcd.setBacklight(LOW);
 }
 
 void loop(void) {
